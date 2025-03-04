@@ -39,7 +39,7 @@ const app = remote.app;
 let img_path = process.env.APPDATA + "/POS/uploads/";
 let api = "http://" + host + ":" + port + "/api/";
 let btoa = require("btoa");
-let jsPDF = require("jspdf");
+let jsPDF = require("jspdf").jsPDF;
 let html2canvas = require("html2canvas");
 let JsBarcode = require("jsbarcode");
 let macaddress = require("macaddress");
@@ -292,7 +292,7 @@ if (auth == undefined) {
                                     item.stock == 1 ? item.quantity : "N/A"
                                   }</span></div>
                                   <sp class="text-success text-center"><b data-plugin="counterup">${
-                                    settings.symbol + item.price
+                                    formatRupiah(item.price, settings.symbol)
                                   }</b> </sp>
                       </div>
                   </div>`;
@@ -471,20 +471,21 @@ if (auth == undefined) {
       index = value;
     };
 
+    // Menggunakan fungsi formatRupiah saat menampilkan harga
     $.fn.calculateCart = function () {
       let total = 0;
       let grossTotal;
       $("#total").text(cart.length);
       $.each(cart, function (index, data) {
-        total += data.quantity * data.price;
+        total += data.price * data.quantity;
       });
       total = total - $("#inputDiscount").val();
-      $("#price").text(settings.symbol + total.toFixed(2));
+      $("#price").text(formatRupiah(total, settings.symbol));
 
       subTotal = total;
 
       if ($("#inputDiscount").val() >= total) {
-        $("#inputDiscount").val(0);
+        $("#inputDiscount").val(total);
       }
 
       if (settings.charge_tax) {
@@ -494,21 +495,33 @@ if (auth == undefined) {
         grossTotal = total;
       }
 
-      orderTotal = grossTotal.toFixed(2);
+      orderTotal = grossTotal;
 
-      $("#gross_price").text(settings.symbol + grossTotal.toFixed(2));
+      $("#gross_price").text(formatRupiah(grossTotal, settings.symbol));
       $("#payablePrice").val(grossTotal);
     };
 
     $.fn.renderTable = function (cartList) {
+      $("#cartTable > thead").html(`
+        <tr>
+          <th width="10%">#</th>
+          <th width="25%">Item</th>
+          <th width="20%">Image</th>
+          <th width="20%">Qty</th>
+          <th width="20%">Price</th>
+          <th width="10%">
+            <button onclick="$(this).cancelOrder()" class="btn btn-danger btn-xs"><i class="fa fa-times"></i></button>
+          </th>
+        </tr>
+      `);
       $("#cartTable > tbody").empty();
       $(this).calculateCart();
       $.each(cartList, function (index, data) {
         $("#cartTable > tbody").append(
           $("<tr>").append(
-            $("<td>", { text: index + 1 }),
-            $("<td>", { text: data.product_name }),
-            $("<td>").append(
+            $("<td>", { text: index + 1, width: "10%" }),
+            $("<td>", { text: data.product_name, width: "25%" }),
+            $("<td>", { width: "20%" }).append(
               $("<div>", { id: "image", class: "cart-image-wrapper" }).append(
                 $("<img>", {
                   src:
@@ -521,7 +534,7 @@ if (auth == undefined) {
                 })
               )
             ),
-            $("<td>").append(
+            $("<td>", { width: "20%" }).append(
               $("<div>", { class: "input-group" }).append(
                 $("<div>", { class: "input-group-btn btn-xs" }).append(
                   $("<button>", {
@@ -531,7 +544,6 @@ if (auth == undefined) {
                 ),
                 $("<input>", {
                   class: "cart-quantity-form",
-
                   value: data.quantity,
                   onInput: "$(this).qtInput(" + index + ")",
                 }),
@@ -544,9 +556,10 @@ if (auth == undefined) {
               )
             ),
             $("<td>", {
-              text: settings.symbol + (data.price * data.quantity).toFixed(2),
+              text: formatRupiah(data.price * data.quantity, settings.symbol),
+              width: "20%"
             }),
-            $("<td>").append(
+            $("<td>", { width: "10%" }).append(
               $("<button>", {
                 class: "btn btn-danger btn-xs",
                 onclick: "$(this).deleteFromCart(" + index + ")",
@@ -657,6 +670,7 @@ if (auth == undefined) {
       });
     });
 
+    // Menggunakan fungsi formatRupiah saat menampilkan harga di struk
     $.fn.submitDueOrder = function (status) {
       // setting value of card info/mpesa code to empty
       $("#paymentInfo").val("");
@@ -671,8 +685,7 @@ if (auth == undefined) {
           "</td><td>" +
           item.quantity +
           "</td><td>" +
-          settings.symbol +
-          parseFloat(item.price).toFixed(2) +
+          formatRupiah(parseFloat(item.price), settings.symbol) +
           "</td></tr>";
       });
 
@@ -714,14 +727,12 @@ if (auth == undefined) {
         payment = `<tr>
                         <td>Paid</td>
                         <td>:</td>
-                        <td>${settings.symbol + paid}</td>
+                        <td>${paid}</td>
                     </tr>
                     <tr>
                         <td>Change</td>
                         <td>:</td>
-                        <td>${
-                          settings.symbol + Math.abs(change).toFixed(2)
-                        }</td>
+                        <td>${change}</td>
                     </tr>
                     <tr>
                         <td>Method</td>
@@ -734,9 +745,7 @@ if (auth == undefined) {
         tax_row = `<tr>
                     <td>Vat(${settings.percentage})% </td>
                     <td>:</td>
-                    <td>${settings.symbol}${parseFloat(totalVat).toFixed(
-          2
-        )}</td>
+                    <td>${formatRupiah(parseFloat(totalVat), settings.symbol)}</td>
                 </tr>`;
       }
 
@@ -808,14 +817,14 @@ if (auth == undefined) {
             <tr>                        
                 <td><b>Subtotal</b></td>
                 <td>:</td>
-                <td><b>${settings.symbol}${subTotal.toFixed(2)}</b></td>
+                <td><b>${formatRupiah(subTotal, settings.symbol)}</b></td>
             </tr>
             <tr>
                 <td>Discount</td>
                 <td>:</td>
                 <td>${
                   discount > 0
-                    ? settings.symbol + parseFloat(discount).toFixed(2)
+                    ? formatRupiah(parseFloat(discount), settings.symbol)
                     : ""
                 }</td>
             </tr>
@@ -826,9 +835,7 @@ if (auth == undefined) {
                 <td><h3>Total</h3></td>
                 <td><h3>:</h3></td>
                 <td>
-                    <h3>${settings.symbol}${parseFloat(orderTotal).toFixed(
-        2
-      )}</h3>
+                    <h3>${formatRupiah(parseFloat(orderTotal), settings.symbol)}</h3>
                 </td>
             </tr>
             ${payment == 0 ? "" : payment}
@@ -864,7 +871,7 @@ if (auth == undefined) {
         discount: discount,
         customer: customer,
         status: status,
-        subtotal: parseFloat(subTotal).toFixed(2),
+        subtotal: parseFloat(subTotal),
         tax: totalVat,
         order_type: 1,
         items: cart,
@@ -2192,7 +2199,8 @@ function loadTransactions() {
 
         if (counter == transactions?.length) {
           $("#total_sales #counter").text(
-            settings.symbol + parseFloat(sales).toFixed(2)
+            // settings.symbol + parseFloat(sales).toFixed(2)
+            formatRupiah(sales, settings.symbol)
           );
           $("#total_transactions #counter").text(transact);
 
@@ -2266,6 +2274,7 @@ function discend(a, b) {
   return 0;
 }
 
+// Menggunakan fungsi formatRupiah saat menampilkan harga di tabel transaksi
 function loadSoldProducts() {
   sold.sort(discend);
 
@@ -2295,15 +2304,13 @@ function loadSoldProducts() {
                   : ""
                 : "N/A"
             }</td>
-            <td>${
-              settings.symbol + (item?.qty * parseFloat(item.price))?.toFixed(2)
-            }</td>
+            <td>${formatRupiah(item?.qty * parseFloat(item.price), settings.symbol)}</td>
             </tr>`;
 
     if (counter == sold.length) {
       $("#total_items #counter").text(items);
       $("#total_products #counter").text(products);
-      $("#product_sales").html(sold_list);
+      $("#product_sales").append(sold_list);
     }
   });
 }
@@ -2584,3 +2591,14 @@ $("#quit").click(function () {
     }
   });
 });
+
+// Fungsi untuk memformat harga
+function formatRupiah(angka, symbol) {
+  // Menghapus bagian desimal jika harga adalah bilangan bulat
+  angka = parseFloat(angka);
+  if (Number.isInteger(angka)) {
+    return symbol + ' ' + angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  } else {
+    return symbol + ' ' + angka.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+}

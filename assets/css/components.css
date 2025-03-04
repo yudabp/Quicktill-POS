@@ -1,4 +1,4 @@
-@import "~bootstrap/scss/bootstrap";
+@import "../../node_modules/bootstrap-scss/bootstrap.scss";
 /* start of custome styles*/
 .leftMargin {
   margin-left: -110px !important;
